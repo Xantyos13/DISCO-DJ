@@ -35,7 +35,7 @@ class Cosmology:
             Omega_k: float | AnyArray = 0.0,
             w0: float | AnyArray = -1.0,
             wa: float | AnyArray = 0.0,
-            mnu: float | AnyArray = 0.0,
+            mnu: float | AnyArray = 0.06,
             timetable_settings: dict | None = None,
             dtype_num: int = 32,            
             requires_jacfwd: bool = False,
@@ -333,7 +333,7 @@ class Cosmology:
     # Background cosmology
     # # # # # # # # # # # #
 
-    @property
+    @forbidden_for_derivative
     def Omega_m_a(self, a: float | AnyArray):
         """Dynamic fraction of matter"""
         return self.Omega_m * a ** -3  / self.E(a)
