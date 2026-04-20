@@ -11,10 +11,9 @@ __all__ = ["Cosmology"]
 #####       -> Omega_nu fnct (without spline)
 #####       -> Modif on fnct (E,dE etc..)
 #####       -> Add radiation gamma and neutrino (what about coeff Neff etc ??) -> for the moment Nrel = Neff -1 but can be replace by "exact" value
-
+#####       -> Modify Initial Conditions
 
 ##### TODO: 
-#####       -> Modify Initial Conditions
 #####       -> Spline for Omega_nu (for perf adn derivvative) 
 #####       -> Omega_m (gamma_FS * Omega_nu(a)) ; when everything works, bc we'll have to change steppers .. 
 
@@ -240,12 +239,19 @@ class Cosmology:
     
     @property
     def rho_c(self) : 
+        """Critical density parameter"""
         return 10.54e3 * self.h**2 / conv_ev3_to_cm3 # TODO verif value
 
     @property
     def amnu(self) : 
+        """Dimensionless neutrino mass"""
         return self.mnu * conKeV / Tnu0
-
+    
+    @property
+    def fr0(self):
+        """Initial Radiation over Matter fraction"""
+        return (self.Omega_gamma + self.Omega_nu_rel) / (self.Omega_b + self.Omega_c + self.Omega_nu(1.0))
+    
     # # # # # # # # # # # #
     # Jax PyTree methods
     # # # # # # # # # # # #
@@ -327,7 +333,11 @@ class Cosmology:
     # Background cosmology
     # # # # # # # # # # # #
 
-    
+    @property
+    def Omega_m_a(self, a: float | AnyArray):
+        """Dynamic fraction of matter"""
+        return self.Omega_m * a ** -3  / self.E(a)
+
     @forbidden_for_derivative
     def Omega_nu(self, a: float | AnyArray):
         """Compute the neutrino density parameter."""
@@ -406,12 +416,14 @@ class Cosmology:
 
         ln_a = jnp.log(a)
 
-        ##### INITAL CONDITIONS TO MODIFIY #####
-        y1_0 = jnp.log(a_min_integration)  # D1 ~ a
-        f1_0 = 1.0
-        D2_0 = -3.0 / 7.0 * a_min_integration ** 2  # D2 ~ -3/7 a^2
+        D1_0  = (2/3) * self.fr0 + a_min_integration # D1 ~ (2/3) fr0 + a
+        y1_0 = jnp.log(D1_0) 
+        D1x_0 = a_min_integration * 1.0
+        f1_0 = D1x_0 / D1_0
+        D2_0 = -3.0 / 7.0 * D1_0 ** 2 * self.Omega_m_a(a_min_integration) ** (-1/143)  # D2 ~ -(3/7) D1**2 * Omega_m_ini**(-1/143)
         y2_0 = jnp.log(jnp.abs(D2_0))
-        f2_0 = 2.0
+        D2x_0 = a_min_integration *  -(3/7) * 2 * D1_0 * 1 * self.Omega_m_a(a_min_integration) ** (-1/143)
+        f2_0 = D2x_0 / D2_0
         D3a_0 = 1.0 / 3.0 * a_min_integration ** 3  # D3a ~ +1/3 a^3
         y3a_0 = jnp.log(jnp.abs(D3a_0))
         f3a_0 = 3.0
@@ -423,7 +435,7 @@ class Cosmology:
         y0_log = jnp.array([y1_0, f1_0, y2_0, f2_0, y3a_0, f3a_0, y3b_0, f3b_0, y3c_0])
 
         # Signs from EdS expressions at small a
-        s2 = jnp.sign(-3.0 / 7.0)  # D2 ~ -3/7 a^2
+        s2 = jnp.sign(D2_0)  
         s3a = jnp.sign(1.0 / 3.0)  # D3a ~ +1/3 a^3
         s3b = jnp.sign(-10.0 / 21.0)  # D3b ~ -10/21 a^3
         s3c = jnp.sign(1.0 / 7.0)  # D3c ~ +1/7 a^3
