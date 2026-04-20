@@ -10,10 +10,10 @@ __all__ = ["Cosmology"]
 #####       -> mnu added as parameter of cosmo
 #####       -> Omega_nu fnct (without spline)
 #####       -> Modif on fnct (E,dE etc..)
+#####       -> Add radiation gamma and neutrino (what about coeff Neff etc ??) -> for the moment Nrel = Neff -1 but can be replace by "exact" value
 
 
 ##### TODO: 
-#####       -> Add radaition gamma and neutrino (what about coeff Neff etc ??)
 #####       -> Modify Initial Conditions
 #####       -> Spline for Omega_nu (for perf adn derivvative) 
 #####       -> Omega_m (gamma_FS * Omega_nu(a)) ; when everything works, bc we'll have to change steppers .. 
@@ -160,6 +160,17 @@ class Cosmology:
     # # # # # # # # # # # #
     # Properties
     # # # # # # # # # # # #
+
+    @property
+    def Omega_gamma(self):
+        """Photon density parameter """
+        return 2.47e-5 / (self.h)**2
+    
+    @property
+    def Omega_nu_rel(self):
+        """Radiation term of massless neutrinos"""
+        return self.Omega_gamma * (Neff -1) * (7/8) * (4/11)**(4/3) # Or replace (Neff-1) by 2.0458496 
+
     @property
     def Omega_c(self):
         """Cold dark matter density parameter."""
@@ -336,12 +347,16 @@ class Cosmology:
     def E(self, a: float | AnyArray) -> AnyArray:
         """Dimensionless Hubble parameter as a function of scale factor."""
         # see https://arxiv.org/pdf/astro-ph/0508156 (Eqs. 3 & 5) for w(a) = w0 + wa (1-a)
-        return jnp.sqrt(self.Omega_m * a ** -3 + self.Omega_k * a ** -2 + self.Omega_de_of_a(a) + self.Omega_nu(a))
+        return jnp.sqrt(self.Omega_gamma * a ** -4 + self.Omega_m * a ** -3 + self.Omega_k * a ** -2 + self.Omega_de_of_a(a) + self.Omega_nu(a))
 
     @forbidden_for_derivative
     def Eda(self, a: AnyArray) -> AnyArray:
         """Compute the derivative of the dimensionless Hubble parameter E(a) with respect to a.
         """
+        #Radiation term
+        radiation_term = (self.Omega_gamma + self.Omega_nu_rel) * a ** -4
+        dradiation_term = -4 * (self.Omega_gamma + self.Omega_nu_rel) * a ** -5
+
         # Matter term
         matter_term = self.Omega_m * a ** -3
         dmatter_da = -3 * self.Omega_m * a ** -4
@@ -362,8 +377,8 @@ class Cosmology:
         else : 
             dnu_term = jax.vmap(jax.grad(self.Omega_nu))(a)
 
-        dE2_da = dmatter_da + dcurvature_da + dde_da + dnu_term
-        E = jnp.sqrt(matter_term + curvature_term + de_term + nu_term)
+        dE2_da = dradiation_term + dmatter_da + dcurvature_da + dde_da + dnu_term
+        E = jnp.sqrt(radiation_term + matter_term + curvature_term + de_term + nu_term)
         return 0.5 * dE2_da / E
 
     @forbidden_for_derivative
