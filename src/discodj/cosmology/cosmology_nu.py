@@ -8,13 +8,14 @@ __all__ = ["Cosmology"]
 
 ##### NOTE: Already done : 
 #####       -> mnu added as parameter of cosmo
-#####       -> Omega_nu fnct (without spline)
+#####       -> Omega_nu fnct (without interpolation)
 #####       -> Modif on fnct (E,dE etc..)
 #####       -> Add radiation gamma and neutrino (what about coeff Neff etc ??) -> for the moment Nrel = Neff -1 but can be replace by "exact" value
 #####       -> Modify Initial Conditions
+#####       -> Interpolation for Omega_nu
 
 ##### TODO: 
-#####       -> Spline for Omega_nu (for perf adn derivvative) 
+#####       -> Run some tests to id bug 
 #####       -> Omega_m (gamma_FS * Omega_nu(a)) ; when everything works, bc we'll have to change steppers .. 
 
 
@@ -110,11 +111,12 @@ class Cosmology:
             a_table = jnp.linspace(s["a_min"] ** exponent, s["a_max"] ** exponent, s["steps"],
                                    dtype=self._dtype) ** (1 / exponent)
 
+        nu_dict = self.compute_nu_table(a_table)
         growth_dict = self.compute_unnormed_growth(a_table, a_min_integration=s["a_min"])
         superconft_table = self.compute_superconft(a_table)
 
         # Update timetables
-        new_timetables = {"a": a_table, "superconft": superconft_table, **growth_dict}
+        new_timetables = {"a": a_table, "superconft": superconft_table, **growth_dict,**nu_dict}
         return self.update_timetables(**new_timetables)
 
     def __repr__(self):
@@ -220,7 +222,7 @@ class Cosmology:
     @forbidden_for_derivative
     def Omega_de(self):
         """Compute the dark energy density parameter."""
-        return 1.0 - self._Omega_c - self._Omega_b - self._Omega_k - self.Omega_nu(1.0)
+        return 1.0 - self._Omega_c - self._Omega_b - self._Omega_k - self.Omega_nu_exact(1.0)
     @property
     @forbidden_for_derivative
     def is_EdS(self):
@@ -250,7 +252,7 @@ class Cosmology:
     @property
     def fr0(self):
         """Initial Radiation over Matter fraction"""
-        return (self.Omega_gamma + self.Omega_nu_rel) / (self.Omega_b + self.Omega_c + self.Omega_nu(1.0))
+        return (self.Omega_gamma + self.Omega_nu_rel) / (self.Omega_b + self.Omega_c + self.Omega_nu_exact(1.0))
     
     # # # # # # # # # # # #
     # Jax PyTree methods
@@ -333,16 +335,32 @@ class Cosmology:
     # Background cosmology
     # # # # # # # # # # # #
 
+    def Omega_nu_exact(self, a):
+        """Compute the neutrino density parameter."""
+        return N_massive_nu * nu_background(a, self.amnu)[0] * g * (Tnu0/conKeV)**4 / (2*jnp.pi**2*self.rho_c) * a**(-4)
+
+    @forbidden_for_derivative
+    def compute_nu_table(self, a: AnyArray) -> dict:
+        Omega_nu = jax.vmap(self.Omega_nu_exact)(a)
+        dOmega =  jax.vmap(jax.grad(self.Omega_nu_exact))(a)
+        return {
+            "Omega_nu": Omega_nu.astype(self._dtype),
+            "dOmega_nu": dOmega.astype(self._dtype),
+        }
+
+    @forbidden_for_derivative
+    def Omega_nu(self, a):
+        return self.get_interpolated_property(a, "a", "Omega_nu")
+
+    @forbidden_for_derivative
+    def dOmega_nu(self, a):
+        return self.get_interpolated_property(a, "a", "dOmega_nu")
+
     @forbidden_for_derivative
     def Omega_m_a(self, a: float | AnyArray):
         """Dynamic fraction of matter"""
         return self.Omega_m * a ** -3  / self.E(a)
 
-    @forbidden_for_derivative
-    def Omega_nu(self, a: float | AnyArray):
-        """Compute the neutrino density parameter."""
-        return N_massive_nu* nu_background(a, self.amnu)[0] * g * (Tnu0/conKeV)**4 / (2 * jnp.pi**2 * self.rho_c) *a**(-4)
-    
     @forbidden_for_derivative
     def w(self, a: float | AnyArray) -> AnyArray:
         """Dark energy equation of state parameter as a function of scale factor."""
@@ -357,7 +375,7 @@ class Cosmology:
     def E(self, a: float | AnyArray) -> AnyArray:
         """Dimensionless Hubble parameter as a function of scale factor."""
         # see https://arxiv.org/pdf/astro-ph/0508156 (Eqs. 3 & 5) for w(a) = w0 + wa (1-a)
-        return jnp.sqrt(self.Omega_gamma * a ** -4 + self.Omega_m * a ** -3 + self.Omega_k * a ** -2 + self.Omega_de_of_a(a) + self.Omega_nu(a))
+        return jnp.sqrt(self.Omega_gamma * a ** -4 + self.Omega_m * a ** -3 + self.Omega_k * a ** -2 + self.Omega_de_of_a(a) +self.Omega_nu(a))
 
     @forbidden_for_derivative
     def Eda(self, a: AnyArray) -> AnyArray:
@@ -382,10 +400,7 @@ class Cosmology:
         
         # Neutrino term 
         nu_term = self.Omega_nu(a)
-        if jnp.asarray(a).ndim == 0:
-            dnu_term = jax.grad(self.Omega_nu)(a)
-        else : 
-            dnu_term = jax.vmap(jax.grad(self.Omega_nu))(a)
+        dnu_term = self.dOmega_nu(a)
 
         dE2_da = dradiation_term + dmatter_da + dcurvature_da + dde_da + dnu_term
         E = jnp.sqrt(radiation_term + matter_term + curvature_term + de_term + nu_term)
