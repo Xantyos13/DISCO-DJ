@@ -4,7 +4,7 @@ import numpy as np
 from jax import Array
 from einops import rearrange
 from ..core.grids import get_fourier_grid
-from ..cosmology.cosmology_loader import Cosmology
+from ..cosmology.cosmology import Cosmology
 from ..core.utils import set_0_to_val, pad, crop, conv2_fourier
 
 __all__ = ["evaluate_ppt"]

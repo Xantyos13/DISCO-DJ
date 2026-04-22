@@ -1,6 +1,6 @@
 import numpy as onp
 from ..core.types import AnyArray
-from ..cosmology.cosmology_loader import Cosmology
+from ..cosmology.cosmology import Cosmology
 
 __all__ = ["save_as_hdf5"]
 

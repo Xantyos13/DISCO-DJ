@@ -8,7 +8,7 @@ from ..core.grids import get_fourier_grid
 from ..core.kernels import gradient_kernel, inv_laplace_kernel
 from ..core.utils import set_0_to_val, pad, conv2_fourier
 from ..core.types import AnyArray
-from ..cosmology.cosmology_loader import Cosmology
+from ..cosmology.cosmology import Cosmology
 
 __all__ = ["NLPT", "fmu2_1", "fmu2_C_2"]
 
