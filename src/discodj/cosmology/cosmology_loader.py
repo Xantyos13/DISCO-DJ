@@ -2,7 +2,7 @@
 
 import os
 
-use_nu = os.environ.get("USE_MASSIVE_NEUTRINOS") == "0"
+use_nu = os.environ.get("USE_MASSIVE_NEUTRINOS") == "1"
 
 if use_nu:
     from .cosmology_nu import Cosmology
