@@ -6,7 +6,7 @@ from inspect import signature
 from .nlpt import NLPT
 from ..core.utils import set_0_to_val
 from ..core.types import AnyArray
-from ..cosmology.cosmology import Cosmology
+from ..cosmology.cosmology_loader import Cosmology
 
 __all__ = ["NLPT1"]
 

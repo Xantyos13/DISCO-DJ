@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from jax import Array
-from ..cosmology.cosmology import Cosmology
+from ..cosmology.cosmology_loader import Cosmology
 from ..core.types import AnyArray
 
 __all__ = ["generate_ics_plane_wave"]

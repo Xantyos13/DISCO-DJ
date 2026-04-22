@@ -7,7 +7,7 @@ from functools import partial
 from .nlpt import NLPT
 from .nlpt import conv2_fourier, pad
 from ..core.utils import set_0_to_val
-from ..cosmology.cosmology import Cosmology
+from ..cosmology.cosmology_loader import Cosmology
 
 __all__ = ["NLPT3"]
 

@@ -7,7 +7,7 @@ from .nlpt import NLPT, fmu2_1, fmu2_C_2
 from ..core.grids import get_fourier_grid
 from ..core.utils import set_0_to_val, crop
 from ..core.types import AnyArray
-from ..cosmology.cosmology import Cosmology
+from ..cosmology.cosmology_loader import Cosmology
 
 __all__ = ["NLPT2"]
 

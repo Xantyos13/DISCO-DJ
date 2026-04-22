@@ -36,7 +36,7 @@ class Cosmology:
             Omega_k: float | AnyArray = 0.0,
             w0: float | AnyArray = -1.0,
             wa: float | AnyArray = 0.0,
-            mnu: float | AnyArray = 0.06,
+            mnu: float | AnyArray = 0.04,
             timetable_settings: dict | None = None,
             dtype_num: int = 32,            
             requires_jacfwd: bool = False,
@@ -80,14 +80,14 @@ class Cosmology:
         return wrapper
 
     @forbidden_for_derivative
-    def compute_timetables(self, timetable_settings: dict | None) -> "Cosmology":
+    def compute_timetables(self, timetable_settings: dict | None = None) -> "Cosmology":
         """Compute the timetables for growth factor and superconformal time.
 
         :param timetable_settings: dictionary with settings for the timetables.
         :return: A new Cosmology instance with computed timetables.
         """
         # Set timetable setting defaults
-        a_min = 1e-10
+        a_min = 1e-6
         steps_default = 2500
         s = {"a_min": a_min, "spacing_power": 0.0, "steps": steps_default, "a_max": 1.0}
 
@@ -111,7 +111,11 @@ class Cosmology:
             a_table = jnp.linspace(s["a_min"] ** exponent, s["a_max"] ** exponent, s["steps"],
                                    dtype=self._dtype) ** (1 / exponent)
 
+        # Compute neutrino table exactly ONCE
         nu_dict = self.compute_nu_table(a_table)
+        # Pre-fill timetables with a and Ων so that E(a) can use interpolation (no recursion)
+        tmp_self = self.update_timetables(a=a_table, **nu_dict)
+        
         growth_dict = self.compute_unnormed_growth(a_table, a_min_integration=s["a_min"])
         superconft_table = self.compute_superconft(a_table)
 
@@ -336,8 +340,17 @@ class Cosmology:
     # # # # # # # # # # # #
 
     def Omega_nu_exact(self, a):
-        """Compute the neutrino density parameter."""
-        return N_massive_nu * nu_background(a, self.amnu)[0] * g * (Tnu0/conKeV)**4 / (2*jnp.pi**2*self.rho_c) * a**(-4)
+        a_arr = jnp.atleast_1d(a)
+
+        def one_a(aa):
+            return (
+                N_massive_nu * nu_background(aa, self.amnu)[0]
+                * g * (Tnu0 / conKeV) ** 4
+                / (2 * jnp.pi ** 2 * self.rho_c)
+                * aa ** (-4)
+            )
+        out = jax.vmap(one_a)(a_arr)
+        return out[0] if jnp.asarray(a).ndim == 0 else out
 
     @forbidden_for_derivative
     def compute_nu_table(self, a: AnyArray) -> dict:
@@ -349,17 +362,17 @@ class Cosmology:
         }
 
     @forbidden_for_derivative
-    def Omega_nu(self, a):
+    def Omega_nu(self, a: float | AnyArray) -> AnyArray:
         return self.get_interpolated_property(a, "a", "Omega_nu")
 
     @forbidden_for_derivative
-    def dOmega_nu(self, a):
+    def dOmega_nu(self, a: float | AnyArray) -> AnyArray:
         return self.get_interpolated_property(a, "a", "dOmega_nu")
 
     @forbidden_for_derivative
     def Omega_m_a(self, a: float | AnyArray):
         """Dynamic fraction of matter"""
-        return self.Omega_m * a ** -3  / self.E(a)
+        return self.Omega_m * a ** -3  / self.E(a)**2
 
     @forbidden_for_derivative
     def w(self, a: float | AnyArray) -> AnyArray:
@@ -375,7 +388,8 @@ class Cosmology:
     def E(self, a: float | AnyArray) -> AnyArray:
         """Dimensionless Hubble parameter as a function of scale factor."""
         # see https://arxiv.org/pdf/astro-ph/0508156 (Eqs. 3 & 5) for w(a) = w0 + wa (1-a)
-        return jnp.sqrt(self.Omega_gamma * a ** -4 + self.Omega_m * a ** -3 + self.Omega_k * a ** -2 + self.Omega_de_of_a(a) +self.Omega_nu(a))
+        nu_term = self.Omega_nu_exact(a) if not self._timetables else self.Omega_nu(a)
+        return jnp.sqrt((self.Omega_gamma+ self.Omega_nu_rel) * a ** -4 + self.Omega_m * a ** -3 + self.Omega_k * a ** -2 + self.Omega_de_of_a(a) +nu_term)
 
     @forbidden_for_derivative
     def Eda(self, a: AnyArray) -> AnyArray:
@@ -399,8 +413,12 @@ class Cosmology:
                                   * jnp.exp(-3 * self.wa * (1 - a)) * (-1 - self.w0 + (a - 1) * self.wa))
         
         # Neutrino term 
-        nu_term = self.Omega_nu(a)
-        dnu_term = self.dOmega_nu(a)
+        if not self._timetables:
+            nu_term = self.Omega_nu_exact(a)
+            dnu_term = jax.grad(self.Omega_nu_exact)(a)
+        else:
+            nu_term = self.Omega_nu(a)
+            dnu_term = self.dOmega_nu(a)
 
         dE2_da = dradiation_term + dmatter_da + dcurvature_da + dde_da + dnu_term
         E = jnp.sqrt(radiation_term + matter_term + curvature_term + de_term + nu_term)
@@ -513,7 +531,7 @@ class Cosmology:
         D3bp = f3b * D3b / a
 
         ys = jnp.stack([D1, D1p, D2, D2p, D3a, D3ap, D3b, D3bp, D3c], axis=-1)
-        gradients_log = jax.vmap(growth_derivs_log_signed)(a, ys)
+        gradients_log = jax.vmap(growth_derivs_log_signed)(ln_a, ys)
         gradients = gradients_log * ys / a[:, None]  # Convert to linear derivatives
 
         # Normalize and build a dictionary
@@ -567,6 +585,9 @@ class Cosmology:
         if not self._timetables:
             new_self = self.compute_timetables()
             return new_self.get_interpolated_property(x, key_from, key_to)
+                
+        #if not self._timetables:
+        #    raise RuntimeError("Tu dois appeler compute_timetables() avant interpolation.")
 
         if key_from not in self._timetables.keys():
             raise RuntimeError(f"Key {key_from} not found in the timetable.")

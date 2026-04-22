@@ -9,7 +9,7 @@ from collections.abc import Callable
 import diffrax
 from diffrax import ODETerm, diffeqsolve, SaveAt, NoProgressMeter
 # from diffrax import TqdmProgressMeter
-from .cosmology.cosmology import Cosmology
+from .cosmology.cosmology_loader import Cosmology
 from .cosmology.cosmo_utils import get_sigma8_squared_from_Pk
 from .cosmology.predefined_cosmologies import get_cosmology_dict_from_name
 from .cosmology.transfer_functions import transfer_dict

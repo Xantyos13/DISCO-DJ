@@ -14,7 +14,7 @@ from .kernels import inv_mak_kernel
 from .grids import get_fourier_grid, get_lagrangian_grid_vectors
 from .utils import scan_fct_np, add_to_indices, set_indices_to_val, preprocess_fixed_inds
 from .types import AnyArray
-from ..cosmology.cosmology import Cosmology
+from ..cosmology.cosmology_loader import Cosmology
 
 __all__ = ['scatter', 'gather', 'deconvolve_mak',
            'interpolate_field', 'fourier_interpolate_field', 'linearly_interpolate_field',
