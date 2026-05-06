@@ -12,7 +12,7 @@ conv_ev3_to_cm3 = (5.0677307e4)**3  # conversion eV3 / cm3
 #k_B = 8.617e-5  # eV/K
 Tcmb = 2.725  #  CMB temp (K)
 Tnu0 = (4/11)**(1/3)*Tcmb # CNB temp (K) 
-#Tnu0_eV = Tnu0/conKeV # CNB temps (eV)
+Tnu0_eV = Tnu0/conKeV # CNB temps (eV)
 #c_kms = 299792.458  # km/s
 
 

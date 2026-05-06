@@ -258,9 +258,9 @@ class Cosmology:
     def fr0(self):
         """Initial Radiation over Matter fraction"""
         if self.mnu == 0.0 : 
-            return (self.Omega_gamma + self.Omega_nu_rel+ self.Omega_nu_exact(1.0)) / (self.Omega_b + self.Omega_c ) # Case of the third neutrino is massless so radiation at a=1
+            return 1 #(self.Omega_gamma + self.Omega_nu_rel+ self.Omega_nu_exact(1.0)) / (self.Omega_b + self.Omega_c ) # Case of the third neutrino is massless so radiation at a=1
         else : 
-            return (self.Omega_gamma + self.Omega_nu_rel) / (self.Omega_b + self.Omega_c + self.Omega_nu_exact(1.0))  # Case of the third neutrino is massive so matter at a=1
+            return 0.975 # (self.Omega_gamma + self.Omega_nu_rel) / (self.Omega_b + self.Omega_c + self.Omega_nu_exact(1.0))  # Case of the third neutrino is massive so matter at a=1
     
     # # # # # # # # # # # #
     # Jax PyTree methods
@@ -367,11 +367,29 @@ class Cosmology:
 
     @forbidden_for_derivative
     def Omega_nu(self, a: float | AnyArray) -> AnyArray:
-        return self.get_interpolated_property(a, "a", "Omega_nu")
+        if not self._timetables:
+            return self.Omega_nu_exact(a)
+
+        a_tab = self._timetables["a"]
+        omega_tab = self._timetables["Omega_nu"]
+
+        a_arr = jnp.atleast_1d(a)
+        out = jnp.interp(a_arr, a_tab, omega_tab)
+
+        return out[0] if jnp.asarray(a).ndim == 0 else out
 
     @forbidden_for_derivative
     def dOmega_nu(self, a: float | AnyArray) -> AnyArray:
-        return self.get_interpolated_property(a, "a", "dOmega_nu")
+        if not self._timetables:
+            return jax.grad(self.Omega_nu_exact)(a)
+
+        a_tab = self._timetables["a"]
+        domega_tab = self._timetables["dOmega_nu"]
+
+        a_arr = jnp.atleast_1d(a)
+        out = jnp.interp(a_arr, a_tab, domega_tab)
+
+        return out[0] if jnp.asarray(a).ndim == 0 else out
 
     @forbidden_for_derivative
     def Omega_m_a(self, a: float | AnyArray):
