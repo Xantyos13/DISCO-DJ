@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 from .cosmology import Cosmology
-
+from matplotlib import pyplot as plt
 __all__ = ["transfer_dict"]
 
 
@@ -50,13 +50,14 @@ def disco_eb(cosmo: Cosmology, k: Array, kmin: float = 1e-5, kmax: float = None,
     N_nu_rel = Neff - N_nu_mass * (Tnu / ((4.0 / 11.0) ** (1.0 / 3.0))) ** 4
     param['Neff'] = N_nu_rel
     param['Nmnu'] = N_nu_mass
-    param['mnu'] = 0.06  # eV
+    param['mnu'] = cosmo.mnu  # eV
     param['k_p'] = 0.05  # in Mpc^-1
     param_bg = evolve_background(param=param, thermo_module='RECFAST')
     evolve_fn = evolve_perturbations  # evolve_perturbations_batched
-    y, kmodes = evolve_fn(param=param_bg, kmin=kmin, kmax=kmax or k[-1], num_k=nmodes,
+    out = evolve_fn(param=param_bg, kmin=kmin, kmax=kmax or k[-1], num_k=nmodes,
                           aexp_out=jnp.array([1.0]), lmaxg=11, lmaxgp=11, lmaxr=11, lmaxnu=11,
                           nqmax=3, max_steps=2048, rtol=1e-4, atol=1e-4)  #, batch_size=min(16, nmodes)
+    y, kmodes = out[0], out[1]
     Pk = get_power(k=kmodes, y=y[:, 0, :], idx=4, param=param_bg)
     Pk_in_Mpc_h = Pk * cosmo.h ** 3
     kmodes_in_Mpc_h = kmodes / cosmo.h
