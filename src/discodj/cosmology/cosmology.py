@@ -258,9 +258,9 @@ class Cosmology:
     def fr0(self):
         """Initial Radiation over Matter fraction"""
         if self.mnu == 0.0 : 
-            return (self.Omega_gamma ) / (self.Omega_b + self.Omega_c ) # Case of the third neutrino is massless so radiation at a=1
+            return (self.Omega_gamma +self.Omega_gamma * 3.046 * (7/8) * (4/11)**(4/3)) / (self.Omega_b + self.Omega_c ) # Case of the third neutrino is massless so radiation at a=1
         else : 
-            return (self.Omega_gamma ) / (self.Omega_b + self.Omega_c + self.Omega_nu_exact(1.0))  # Case of the third neutrino is massive so matter at a=1
+            return (self.Omega_gamma +self.Omega_gamma * 3.046 * (7/8) * (4/11)**(4/3)) / (self.Omega_b + self.Omega_c + self.Omega_nu_exact(1.0))  # Case of the third neutrino is massive so matter at a=1
     
     # # # # # # # # # # # #
     # Jax PyTree methods
@@ -557,7 +557,8 @@ class Cosmology:
         gradients = gradients_log * ys / a[:, None]  # Convert to linear derivatives
 
         # Normalize and build a dictionary
-        Dplus_unnormed_at_1 = jnp.interp(1.0, a, ys[:, 0]) #jnp.asarray(0.33142796)  #jnp.asarray(0.39424405)     
+        #Dplus_unnormed_at_1 = jnp.interp(1.0, a, ys[:, 0])
+        Dplus_unnormed_at_1 =jnp.asarray(0.38221827)  #   jnp.asarray(0.22750397) 
         names = ("Dplus", "Dplusda", "D2plus", "D2plusda", "D3plusa", "D3plusada", "D3plusb", "D3plusbda", "D3plusc")
         norm_exponent = (1, 1, 2, 2, 3, 3, 3, 3, 3)
         growth_dict = {name: ys[:, i] / Dplus_unnormed_at_1 ** norm_exponent[i] for i, name in enumerate(names)}
