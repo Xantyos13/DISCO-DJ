@@ -475,9 +475,9 @@ class Cosmology:
         y1_0 = jnp.log(D1_0) 
         D1x_0 = a_min_integration * 1.0
         f1_0 = D1x_0 / D1_0
-        D2_0 = -3.0 / 7.0 * D1_0 ** 2 * self.Omega_m_a(a_min_integration) ** (-1/143)  # D2 ~ -(3/7) D1**2 * Omega_m_ini**(-1/143)
+        D2_0 = -3.0 / 7.0 * D1_0 ** 2   # D2 ~ -(3/7) D1**2 
         y2_0 = jnp.log(jnp.abs(D2_0))
-        D2x_0 = a_min_integration *  -(3/7) * 2 * D1_0 * 1 * self.Omega_m_a(a_min_integration) ** (-1/143)
+        D2x_0 = a_min_integration *  -(3/7) * 2 * D1_0 * 1 
         f2_0 = D2x_0 / D2_0
         D3a_0 = 1.0 / 3.0 * a_min_integration ** 3  # D3a ~ +1/3 a^3
         y3a_0 = jnp.log(jnp.abs(D3a_0))
