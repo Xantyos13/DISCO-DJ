@@ -174,7 +174,7 @@ class Cosmology:
     @property
     def Omega_nu_rel(self):
         """Radiation term of 2 massless neutrinos"""
-        return self.Omega_gamma * (Neff -1) * (7/8) * (4/11)**(4/3) # Or replace (Neff-1) by 2.0458496 
+        return self.Omega_gamma * (Neff-1) * (7/8) * (4/11)**(4/3) # Or replace (Neff-1) by 2.0458496 
 
     @property
     def Omega_c(self):
@@ -459,7 +459,6 @@ class Cosmology:
     # # # # # # # # # # # #
     # Time table functions
     # # # # # # # # # # # #
-    @forbidden_for_derivative
     def compute_unnormed_growth(self, a: AnyArray, a_min_integration: float) -> dict:
         """Solve the ODE for the unnormalized growth factor as a function of scale factor."""
         # If double precision is enabled, solve the ODE with 64-bit precision and convert to 32-bit
@@ -471,14 +470,11 @@ class Cosmology:
 
         ln_a = jnp.log(a)
 
-        D1_0  = (2/3) * self.fr0 + a_min_integration # D1 ~ (2/3) fr0 + a
-        y1_0 = jnp.log(D1_0) 
-        D1x_0 = a_min_integration * 1.0
-        f1_0 = D1x_0 / D1_0
-        D2_0 = -3.0 / 7.0 * D1_0 ** 2   # D2 ~ -(3/7) D1**2 
+        y1_0 = jnp.log(a_min_integration)  # D1 ~ a
+        f1_0 = 1.0
+        D2_0 = -3.0 / 7.0 * a_min_integration ** 2  # D2 ~ -3/7 a^2
         y2_0 = jnp.log(jnp.abs(D2_0))
-        D2x_0 = a_min_integration *  -(3/7) * 2 * D1_0 * 1 
-        f2_0 = D2x_0 / D2_0
+        f2_0 = 2.0
         D3a_0 = 1.0 / 3.0 * a_min_integration ** 3  # D3a ~ +1/3 a^3
         y3a_0 = jnp.log(jnp.abs(D3a_0))
         f3a_0 = 3.0
@@ -490,7 +486,7 @@ class Cosmology:
         y0_log = jnp.array([y1_0, f1_0, y2_0, f2_0, y3a_0, f3a_0, y3b_0, f3b_0, y3c_0])
 
         # Signs from EdS expressions at small a
-        s2 = jnp.sign(D2_0)  
+        s2 = jnp.sign(-3.0 / 7.0)  # D2 ~ -3/7 a^2
         s3a = jnp.sign(1.0 / 3.0)  # D3a ~ +1/3 a^3
         s3b = jnp.sign(-10.0 / 21.0)  # D3b ~ -10/21 a^3
         s3c = jnp.sign(1.0 / 7.0)  # D3c ~ +1/7 a^3
@@ -501,16 +497,16 @@ class Cosmology:
             """
             a_loc = jnp.exp(ln_a)
             a_loc = jnp.maximum(a_loc, eps)
-            Esqr = self.E(a_loc) ** 2
-            Om_a = (self.Omega_m * a_loc ** -3) / Esqr
-            Ox_a = self.Omega_de_of_a(a_loc) / Esqr
-            w_a = self.w(a_loc)
+            E = self.E(a_loc)
+            dE = self.Eda(a_loc)
+            Om_a = (self.Omega_m * a_loc ** -3) / E**2
+       
 
             # Unpack
             (y1, f1, y2, f2, y3a, f3a, y3b, f3b, y3c) = y
 
             # Drag coefficient
-            drag = (1.0 - 0.5 * (Om_a + (1.0 + 3.0 * w_a) * Ox_a))
+            drag = 2 + (a_loc / E) * dE
 
             # D1
             dy1 = f1
@@ -557,8 +553,7 @@ class Cosmology:
         gradients = gradients_log * ys / a[:, None]  # Convert to linear derivatives
 
         # Normalize and build a dictionary
-        Dplus_unnormed_at_1 =   jnp.asarray(0.39423576)
-        #Dplus_unnormed_at_1 =jnp.asarray(1)  #   jnp.asarray(0.22750397) 
+        Dplus_unnormed_at_1 = jnp.asarray(0.020277658)  #           jnp.interp(1.0, a, ys[:, 0]) 
         names = ("Dplus", "Dplusda", "D2plus", "D2plusda", "D3plusa", "D3plusada", "D3plusb", "D3plusbda", "D3plusc")
         norm_exponent = (1, 1, 2, 2, 3, 3, 3, 3, 3)
         growth_dict = {name: ys[:, i] / Dplus_unnormed_at_1 ** norm_exponent[i] for i, name in enumerate(names)}
