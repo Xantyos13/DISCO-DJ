@@ -550,7 +550,7 @@ class Cosmology:
         gradients = gradients_log * ys / a[:, None]  # Convert to linear derivatives
 
         # Normalize and build a dictionary
-        Dplus_unnormed_at_1 = jnp.asarray(0.020277658)  #           jnp.interp(1.0, a, ys[:, 0]) 
+        Dplus_unnormed_at_1 = jnp.asarray(4.0105066)  #           jnp.interp(1.0, a, ys[:, 0]) 
         names = ("Dplus", "Dplusda", "D2plus", "D2plusda", "D3plusa", "D3plusada", "D3plusb", "D3plusbda", "D3plusc")
         norm_exponent = (1, 1, 2, 2, 3, 3, 3, 3, 3)
         growth_dict = {name: ys[:, i] / Dplus_unnormed_at_1 ** norm_exponent[i] for i, name in enumerate(names)}
