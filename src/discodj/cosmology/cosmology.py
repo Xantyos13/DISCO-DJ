@@ -469,16 +469,16 @@ class Cosmology:
 
         y1_0 = jnp.log(a_min_integration + (2/3)* self.g_gamma_nu_0)  # D1 ~ a +(2/3)*g_gamma_nu_0
         f1_0 = 1.0
-        D2_0 = -3.0 / 7.0 * (a_min_integration + (2/3)*self.g_gamma_nu_0) ** 2  # D2 ~ -3/7 a^2
+        D2_0 = -3.0 / 7.0 * (a_min_integration + (2/3)*self.g_gamma_nu_0) ** 2  # D2 ~ -3/7 D1^2
         y2_0 = jnp.log(jnp.abs(D2_0))
         f2_0 = 2.0
-        D3a_0 = 1.0 / 3.0 * (a_min_integration + (2/3)*self.g_gamma_nu_0) ** 3  # D3a ~ +1/3 a^3
+        D3a_0 = 1.0 / 3.0 * (a_min_integration + (2/3)*self.g_gamma_nu_0) ** 3  # D3a ~ +1/3 D1^3
         y3a_0 = jnp.log(jnp.abs(D3a_0))
         f3a_0 = 3.0
-        D3b_0 = -10.0 / 21.0 * (a_min_integration + (2/3)*self.g_gamma_nu_0) ** 3  # D3b ~ -10/21 a^3
+        D3b_0 = -10.0 / 21.0 * (a_min_integration + (2/3)*self.g_gamma_nu_0) ** 3  # D3b ~ -10/21 D1^3
         y3b_0 = jnp.log(jnp.abs(D3b_0))
         f3b_0 = 3.0
-        D3c_0 = 1.0 / 7.0 * (a_min_integration + (2/3)*self.g_gamma_nu_0) ** 3  # D3c ~ +1/7 a^3
+        D3c_0 = 1.0 / 7.0 * (a_min_integration + (2/3)*self.g_gamma_nu_0) ** 3  # D3c ~ +1/7 D1^3
         y3c_0 = jnp.log(jnp.abs(D3c_0))
         y0_log = jnp.array([y1_0, f1_0, y2_0, f2_0, y3a_0, f3a_0, y3b_0, f3b_0, y3c_0])
 
