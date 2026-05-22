@@ -58,7 +58,7 @@ def disco_eb(cosmo: Cosmology, k: Array, kmin: float = 1e-5, kmax: float = None,
                           aexp_out=jnp.array([1.0]), lmaxg=11, lmaxgp=11, lmaxr=11, lmaxnu=11,
                           nqmax=3, max_steps=2048, rtol=1e-4, atol=1e-4)  #, batch_size=min(16, nmodes)
     y, kmodes = out[0], out[1]
-    Pk = get_power(k=kmodes, y=y[:, 0, :], idx=4, param=param_bg)
+    Pk = get_power(k=kmodes, y=y[:, 0, :], idx=6, param=param_bg)
     Pk_in_Mpc_h = Pk * cosmo.h ** 3
     kmodes_in_Mpc_h = kmodes / cosmo.h
     T = jnp.sqrt(Pk_in_Mpc_h / (kmodes_in_Mpc_h ** cosmo.n_s))
