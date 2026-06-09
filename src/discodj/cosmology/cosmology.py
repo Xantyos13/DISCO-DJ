@@ -6,18 +6,6 @@ from .nu_background import *
 
 __all__ = ["Cosmology"]
 
-##### NOTE: Already done : 
-#####       -> mnu added as parameter of cosmo
-#####       -> Omega_nu fnct (without interpolation)
-#####       -> Modif on fnct (E,dE etc..)
-#####       -> Add radiation gamma and neutrino (what about coeff Neff etc ??) -> for the moment Nrel = Neff -1 but can be replace by "exact" value
-#####       -> Modify Initial Conditions
-#####       -> Interpolation for Omega_nu
-
-##### TODO: 
-#####       -> Run some tests to id bug 
-#####       -> Omega_m (gamma_FS * Omega_nu(a)) ; when everything works, bc we'll have to change steppers .. 
-
 
 @jax.tree_util.register_pytree_node_class
 class Cosmology:
@@ -172,11 +160,6 @@ class Cosmology:
         return 2.47e-5 / (self.h)**2
     
     @property
-    def Omega_nu_rel(self):
-        """Radiation term of 2 massless neutrinos"""
-        return self.Omega_gamma * (Neff-1) * (7/8) * (4/11)**(4/3) # Or replace (Neff-1) by 2.0458496 
-
-    @property
     def Omega_c(self):
         """Cold dark matter density parameter."""
         return self._Omega_c
@@ -188,7 +171,6 @@ class Cosmology:
 
     @property
     def Omega_m(self):
-        #### TO MODIFIY IF FS 
         """Total matter density parameter."""
         return self._Omega_c + self._Omega_b
 
@@ -226,7 +208,7 @@ class Cosmology:
     @forbidden_for_derivative
     def Omega_de(self):
         """Compute the dark energy density parameter."""
-        return 1.0 - self._Omega_c - self._Omega_b - self._Omega_k - self.Omega_nu_exact(1.0) - self.Omega_gamma - self.Omega_nu_rel
+        return 1.0 - self._Omega_c - self._Omega_b - self._Omega_k - N_massive_nu*self.Omega_nu_exact(1.0) - self.Omega_gamma 
 
     @property
     @forbidden_for_derivative
@@ -345,7 +327,7 @@ class Cosmology:
 
         def one_a(aa):
             return (
-                N_massive_nu * nu_background(aa, self.amnu)[0]
+                nu_background(aa, self.amnu,3)[0]
                 * g * (Tnu0 / conKeV) ** 4
                 / (2 * jnp.pi ** 2 * self.rho_c)
                 * aa ** (-4)
@@ -408,15 +390,15 @@ class Cosmology:
         """Dimensionless Hubble parameter as a function of scale factor."""
         # see https://arxiv.org/pdf/astro-ph/0508156 (Eqs. 3 & 5) for w(a) = w0 + wa (1-a)
         nu_term = self.Omega_nu_exact(a) if not self._timetables else self.Omega_nu(a)
-        return jnp.sqrt((self.Omega_gamma+ self.Omega_nu_rel) * a ** -4 + self.Omega_m * a ** -3 + self.Omega_k * a ** -2 + self.Omega_de_of_a(a) +nu_term)
+        return jnp.sqrt((self.Omega_gamma) * a ** -4 + self.Omega_m * a ** -3 + self.Omega_k * a ** -2 + self.Omega_de_of_a(a) +N_massive_nu*nu_term)
 
     @forbidden_for_derivative
     def Eda(self, a: AnyArray) -> AnyArray:
         """Compute the derivative of the dimensionless Hubble parameter E(a) with respect to a.
         """
         #Radiation term
-        radiation_term = (self.Omega_gamma + self.Omega_nu_rel) * a ** -4
-        dradiation_term = -4 * (self.Omega_gamma + self.Omega_nu_rel) * a ** -5
+        radiation_term = (self.Omega_gamma ) * a ** -4
+        dradiation_term = -4 * (self.Omega_gamma ) * a ** -5
 
         # Matter term
         matter_term = self.Omega_m * a ** -3
@@ -439,8 +421,8 @@ class Cosmology:
             nu_term = self.Omega_nu(a)
             dnu_term = self.dOmega_nu(a)
 
-        dE2_da = dradiation_term + dmatter_da + dcurvature_da + dde_da + dnu_term
-        E = jnp.sqrt(radiation_term + matter_term + curvature_term + de_term + nu_term)
+        dE2_da = dradiation_term + dmatter_da + dcurvature_da + dde_da + N_massive_nu*dnu_term
+        E = jnp.sqrt(radiation_term + matter_term + curvature_term + de_term + N_massive_nu*nu_term)
         return 0.5 * dE2_da / E
 
     @forbidden_for_derivative
@@ -496,7 +478,7 @@ class Cosmology:
             a_loc = jnp.maximum(a_loc, eps)
             E = self.E(a_loc)
             dE = self.Eda(a_loc)
-            Om_a = (self.Omega_m * a_loc ** -3) / E**2
+            Om_a = ((self.Omega_m  ) * a_loc ** -3) / E**2
        
 
             # Unpack
@@ -550,7 +532,7 @@ class Cosmology:
         gradients = gradients_log * ys / a[:, None]  # Convert to linear derivatives
 
         # Normalize and build a dictionary
-        Dplus_unnormed_at_1 =  jnp.asarray(4.011256) # jnp.interp(1.0, a, ys[:, 0]) 
+        Dplus_unnormed_at_1 =  jnp.asarray(4.0567737) # jnp.interp(1.0, a, ys[:, 0]) 
         names = ("Dplus", "Dplusda", "D2plus", "D2plusda", "D3plusa", "D3plusada", "D3plusb", "D3plusbda", "D3plusc")
         norm_exponent = (1, 1, 2, 2, 3, 3, 3, 3, 3)
         growth_dict = {name: ys[:, i] / Dplus_unnormed_at_1 ** norm_exponent[i] for i, name in enumerate(names)}

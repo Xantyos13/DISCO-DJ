@@ -19,8 +19,8 @@ Tnu0_eV = Tnu0/conKeV # CNB temps (eV)
 ### NEUTRINOS ###
 #mnu = 0.06 # Sum of neutrinos mass eV (Note that here we have 3 neutrino but only one massive with all the mass)
 #smnu = 0.06
-Neff = 3.046 # Effective number of neutrino 
-N_massive_nu = 1 # Number of massive neutrinos
+Neff = 0 # Effective number of neutrino 
+N_massive_nu = 3 # Number of massive neutrinos
 N_nu_rel =  2.0458496
 N_nu_rel_th = (Neff - N_massive_nu)
 g=2 # DoF
