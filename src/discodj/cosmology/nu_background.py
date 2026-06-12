@@ -1,46 +1,17 @@
 import jax.numpy as jnp
 import jax
-
-# TODO Keep only what's necessary 
+from scipy.optimize import fsolve
 
 ### Conversion factors
 conKeV = 1.160451812e4  # conversion K/eV : 
 conv_ev3_to_cm3 = (5.0677307e4)**3  # conversion eV3 / cm3
 
-
 ### Others ### 
-#k_B = 8.617e-5  # eV/K
 Tcmb = 2.725  #  CMB temp (K)
-Tnu0 = (4/11)**(1/3)*Tcmb # CNB temp (K) 
+Tnu0 = 0.71611*Tcmb # CNB temp (K) 
 Tnu0_eV = Tnu0/conKeV # CNB temps (eV)
-#c_kms = 299792.458  # km/s
-
-
-### NEUTRINOS ###
-#mnu = 0.06 # Sum of neutrinos mass eV (Note that here we have 3 neutrino but only one massive with all the mass)
-#smnu = 0.06
-Neff = 0 # Effective number of neutrino 
 N_massive_nu = 3 # Number of massive neutrinos
-N_nu_rel =  2.0458496
-N_nu_rel_th = (Neff - N_massive_nu)
-g=2 # DoF
-#amnu = mnu * conKeV / Tnu0 # parameter amnu pour nu_background 
-
-
-### Cosmology ###
-#Omega_c=0.2589
-#Omega_b=0.04860
-#Omega_k=0.0
-#h=0.6774
-#n_s=0.9667
-#sigma8=0.8159
-#w0=-1.0
-#wa=0.0
-#H0=70
-#Omega_m0 = Omega_c + Omega_b
-#rho_c = 10.54e3 * h**2 / conv_ev3_to_cm3   # 4.2e-11(eV4)
-#Omega_gamma_0 = 2.47e-5 / h**2 #Initial photon density parameter 
-
+g = 2 # DoF
 
 def generalized_gauss_laguerre_weights(n, alpha):
     """
@@ -143,3 +114,33 @@ def nu_background( a : float, amnu: float, nq : int = 8 ) -> tuple[float, float,
     
     return rhonu, pnu, ppnu
 
+
+def get_masses(delta_m_squared_atm, delta_m_squared_sol, sum_masses, hierarchy):
+    """ 
+        a function returning the three masses given the Delta m^2, the total mass, and the hierarchy (e.g. 'IN' or 'IH')
+        taken from a piece of MontePython written by Thejs Brinckmann
+    """
+    # any string containing letter 'n' will be considered as refering to normal hierarchy
+    if 'n' in hierarchy.lower():
+        # Normal hierarchy massive neutrinos. Calculates the individual
+        # neutrino masses from M_tot_NH and deletes M_tot_NH
+        #delta_m_squared_atm=2.45e-3
+        #delta_m_squared_sol=7.50e-5
+        m1_func = lambda m1, M_tot, d_m_sq_atm, d_m_sq_sol: M_tot**2. + 0.5*d_m_sq_sol - d_m_sq_atm + m1**2. - 2.*M_tot*m1 - 2.*M_tot*(d_m_sq_sol+m1**2.)**0.5 + 2.*m1*(d_m_sq_sol+m1**2.)**0.5
+        m1,opt_output,success,output_message = fsolve(m1_func,sum_masses/3.,(sum_masses,delta_m_squared_atm,delta_m_squared_sol),full_output=True)
+        m1 = m1[0]
+        m2 = (delta_m_squared_sol + m1**2.)**0.5
+        m3 = (delta_m_squared_atm + 0.5*(m2**2. + m1**2.))**0.5
+        return m1,m2,m3
+    else:
+        # Inverted hierarchy massive neutrinos. Calculates the individual
+        # neutrino masses from M_tot_IH and deletes M_tot_IH
+        #delta_m_squared_atm=-2.45e-3
+        #delta_m_squared_sol=7.50e-5
+        delta_m_squared_atm = -delta_m_squared_atm
+        m1_func = lambda m1, M_tot, d_m_sq_atm, d_m_sq_sol: M_tot**2. + 0.5*d_m_sq_sol - d_m_sq_atm + m1**2. - 2.*M_tot*m1 - 2.*M_tot*(d_m_sq_sol+m1**2.)**0.5 + 2.*m1*(d_m_sq_sol+m1**2.)**0.5
+        m1,opt_output,success,output_message = fsolve(m1_func,sum_masses/3.,(sum_masses,delta_m_squared_atm,delta_m_squared_sol),full_output=True)
+        m1 = m1[0]
+        m2 = (delta_m_squared_sol + m1**2.)**0.5
+        m3 = (delta_m_squared_atm + 0.5*(m2**2. + m1**2.))**0.5
+        return m1,m2,m3
