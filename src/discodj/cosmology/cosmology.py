@@ -24,7 +24,7 @@ class Cosmology:
             Omega_k: float | AnyArray = 0.0,
             w0: float | AnyArray = -1.0,
             wa: float | AnyArray = 0.0,
-            mnu: float | AnyArray = 0.06,
+            mnu: float | AnyArray | list = [0.1 ,0.1 ,0.1],
             timetable_settings: dict | None = None,
             dtype_num: int = 32,            
             requires_jacfwd: bool = False,
@@ -56,6 +56,14 @@ class Cosmology:
         self._requires_jacfwd = requires_jacfwd
         self._timetables = {}
         self.is_derivative = is_derivative
+         
+        if isinstance(mnu, (list, tuple, jnp.ndarray)):
+            mnu = jnp.array(mnu, dtype=self._dtype)
+            assert len(mnu) == 3, "mnu doit être une liste de 3 masses de neutrinos."
+        else:
+            mnu = jnp.array([mnu, mnu, mnu], dtype=self._dtype)  
+
+        self._mnu = mnu  
 
     @staticmethod
     def forbidden_for_derivative(func):
@@ -208,7 +216,7 @@ class Cosmology:
     @forbidden_for_derivative
     def Omega_de(self):
         """Compute the dark energy density parameter."""
-        return 1.0 - self._Omega_c - self._Omega_b - self._Omega_k - N_massive_nu*self.Omega_nu_exact(1.0) - self.Omega_gamma 
+        return 1.0 - self._Omega_c - self._Omega_b - self._Omega_k - self.Omega_nu_exact(1.0) - self.Omega_gamma 
 
     @property
     @forbidden_for_derivative
@@ -326,12 +334,16 @@ class Cosmology:
         a_arr = jnp.atleast_1d(a)
 
         def one_a(aa):
-            return (
-                nu_background(aa, self.amnu,3)[0]
-                * g * (Tnu0 / conKeV) ** 4
-                / (2 * jnp.pi ** 2 * self.rho_c)
-                * aa ** (-4)
-            )
+            omega_sum = 0.0
+            for amnu in self.amnu:
+                omega_sum += (
+                    nu_background(aa, amnu, 3)[0]
+                    * g * (Tnu0 / conKeV) ** 4
+                    / (2 * jnp.pi ** 2 * self.rho_c)
+                    * aa ** (-4)
+                )
+            return omega_sum
+
         out = jax.vmap(one_a)(a_arr)
         return out[0] if jnp.asarray(a).ndim == 0 else out
 
@@ -390,7 +402,7 @@ class Cosmology:
         """Dimensionless Hubble parameter as a function of scale factor."""
         # see https://arxiv.org/pdf/astro-ph/0508156 (Eqs. 3 & 5) for w(a) = w0 + wa (1-a)
         nu_term = self.Omega_nu_exact(a) if not self._timetables else self.Omega_nu(a)
-        return jnp.sqrt((self.Omega_gamma) * a ** -4 + self.Omega_m * a ** -3 + self.Omega_k * a ** -2 + self.Omega_de_of_a(a) +N_massive_nu*nu_term)
+        return jnp.sqrt((self.Omega_gamma) * a ** -4 + self.Omega_m * a ** -3 + self.Omega_k * a ** -2 + self.Omega_de_of_a(a) +nu_term)
 
     @forbidden_for_derivative
     def Eda(self, a: AnyArray) -> AnyArray:
@@ -421,8 +433,8 @@ class Cosmology:
             nu_term = self.Omega_nu(a)
             dnu_term = self.dOmega_nu(a)
 
-        dE2_da = dradiation_term + dmatter_da + dcurvature_da + dde_da + N_massive_nu*dnu_term
-        E = jnp.sqrt(radiation_term + matter_term + curvature_term + de_term + N_massive_nu*nu_term)
+        dE2_da = dradiation_term + dmatter_da + dcurvature_da + dde_da + dnu_term
+        E = jnp.sqrt(radiation_term + matter_term + curvature_term + de_term + nu_term)
         return 0.5 * dE2_da / E
 
     @forbidden_for_derivative
