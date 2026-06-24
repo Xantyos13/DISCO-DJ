@@ -1336,13 +1336,17 @@ class DiscoDJ:
                                        kernel_size_nufft=kernel_size_nufft, chunk_size=chunk_size,
                                        try_to_jit=try_to_jit)
 
-    def get_phi_from_delta(self, delta: Array) -> Array:
+    def get_phi_from_delta(self, delta: Array,a: Array | float,) -> Array:
         """Compute the potential from the density contrast using the Poisson equation in Fourier space.
 
         :param delta: density contrast
         :return: potential
         """
         fdelta = jnp.fft.rfftn(delta)
+        if deltanu is not None:
+            omega_nu_over_omega_m = self.Omega_nu(a) / (((self.Omega_m  ) * a_loc ** -3) / E**2)
+            fdelta_nu = jnp.fft.rfftn(deltanu)
+            fdelta = fdelta + omega_nu_over_omega_m * fdelta_nu
         fphi = inv_laplace_kernel(self.k_vecs) * fdelta
         return jnp.fft.irfftn(fphi)
 
