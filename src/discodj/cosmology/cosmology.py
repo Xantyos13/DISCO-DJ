@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 from ..core.types import AnyArray
 from ..core.utils import rk4_integrate
-from .nu_background import *
+from .neutrinos import *
 
 __all__ = ["Cosmology"]
 
@@ -111,7 +111,7 @@ class Cosmology:
         nu_dict = self.compute_nu_table(a_table)
         # Pre-fill timetables with a and Ων so that E(a) can use interpolation (no recursion)
         tmp_self = self.update_timetables(a=a_table, **nu_dict)
-        
+        #k_deltanu, a_deltanu, deltanu_table = self.deltanu_with_class()
         growth_dict = self.compute_unnormed_growth(a_table, a_min_integration=s["a_min"])
         superconft_table = self.compute_superconft(a_table)
 
@@ -216,7 +216,7 @@ class Cosmology:
     @forbidden_for_derivative
     def Omega_de(self):
         """Compute the dark energy density parameter."""
-        return 1.0 - self._Omega_c - self._Omega_b - self._Omega_k - self.Omega_nu_exact(1.0) - self.Omega_gamma 
+        return 1.0 - self._Omega_c - self._Omega_b - self._Omega_k - self.Omega_nu_exact(1.0,flavor=None) - self.Omega_gamma 
 
     @property
     @forbidden_for_derivative
@@ -330,56 +330,82 @@ class Cosmology:
     # Background cosmology
     # # # # # # # # # # # #
 
-    def Omega_nu_exact(self, a):
+    def Omega_nu_exact(self, a, flavor: int | None = None):
         a_arr = jnp.atleast_1d(a)
 
         def one_a(aa):
-            omega_sum = 0.0
+            omega_nu_list = []
             for amnu in self.amnu:
-                omega_sum += (
+                omega_nu = (
                     nu_background(aa, amnu, 3)[0]
                     * g * (Tnu0 / conKeV) ** 4
                     / (2 * jnp.pi ** 2 * self.rho_c)
                     * aa ** (-4)
                 )
-            return omega_sum
+                omega_nu_list.append(omega_nu)
+            omega_sum = jnp.sum(jnp.array(omega_nu_list))
+            if flavor is None:
+                return omega_sum  # Omega_nu_tot
+            else:
+                return omega_nu_list[flavor]  # Omega_nu_1, Omega_nu_2 ou Omega_nu_3
 
         out = jax.vmap(one_a)(a_arr)
         return out[0] if jnp.asarray(a).ndim == 0 else out
 
     @forbidden_for_derivative
     def compute_nu_table(self, a: AnyArray) -> dict:
-        Omega_nu = jax.vmap(self.Omega_nu_exact)(a)
-        dOmega =  jax.vmap(jax.grad(self.Omega_nu_exact))(a)
+        # Calculer Omega_nu_tot et ses dérivées
+        Omega_nu_tot = jax.vmap(lambda a: self.Omega_nu_exact(a, flavor=None))(a)
+        dOmega_nu_tot = jax.vmap(jax.grad(lambda a: self.Omega_nu_exact(a, flavor=None)))(a)
+
+        # Calculer Omega_nu_1, Omega_nu_2, Omega_nu_3 et leurs dérivées
+        Omega_nu_1 = jax.vmap(lambda a: self.Omega_nu_exact(a, flavor=0))(a)
+        Omega_nu_2 = jax.vmap(lambda a: self.Omega_nu_exact(a, flavor=1))(a)
+        Omega_nu_3 = jax.vmap(lambda a: self.Omega_nu_exact(a, flavor=2))(a)
+
+        dOmega_nu_1 = jax.vmap(jax.grad(lambda a: self.Omega_nu_exact(a, flavor=0)))(a)
+        dOmega_nu_2 = jax.vmap(jax.grad(lambda a: self.Omega_nu_exact(a, flavor=1)))(a)
+        dOmega_nu_3 = jax.vmap(jax.grad(lambda a: self.Omega_nu_exact(a, flavor=2)))(a)
+
         return {
-            "Omega_nu": Omega_nu.astype(self._dtype),
-            "dOmega_nu": dOmega.astype(self._dtype),
+            "Omega_nu_1": Omega_nu_1.astype(self._dtype),
+            "Omega_nu_2": Omega_nu_2.astype(self._dtype),
+            "Omega_nu_3": Omega_nu_3.astype(self._dtype),
+            "Omega_nu_tot": Omega_nu_tot.astype(self._dtype),
+            "dOmega_nu_1": dOmega_nu_1.astype(self._dtype),
+            "dOmega_nu_2": dOmega_nu_2.astype(self._dtype),
+            "dOmega_nu_3": dOmega_nu_3.astype(self._dtype),
+            "dOmega_nu_tot": dOmega_nu_tot.astype(self._dtype),
         }
 
     @forbidden_for_derivative
-    def Omega_nu(self, a: float | AnyArray) -> AnyArray:
+    def Omega_nu(self, a: float | AnyArray, flavor: int | None = None) -> AnyArray:
         if not self._timetables:
-            return self.Omega_nu_exact(a)
+            return self.Omega_nu_exact(a, flavor=flavor)
 
         a_tab = self._timetables["a"]
-        omega_tab = self._timetables["Omega_nu"]
+        if flavor is None:
+            omega_tab = self._timetables["Omega_nu_tot"]
+        else:
+            omega_tab = self._timetables[f"Omega_nu_{flavor+1}"]
 
         a_arr = jnp.atleast_1d(a)
         out = jnp.interp(a_arr, a_tab, omega_tab)
-
         return out[0] if jnp.asarray(a).ndim == 0 else out
 
     @forbidden_for_derivative
-    def dOmega_nu(self, a: float | AnyArray) -> AnyArray:
+    def dOmega_nu(self, a: float | AnyArray, flavor: int | None = None) -> AnyArray:
         if not self._timetables:
-            return jax.grad(self.Omega_nu_exact)(a)
+            return jax.grad(lambda a: self.Omega_nu_exact(a, flavor=flavor))(a)
 
         a_tab = self._timetables["a"]
-        domega_tab = self._timetables["dOmega_nu"]
+        if flavor is None:
+            domega_tab = self._timetables["dOmega_nu_tot"]
+        else:
+            domega_tab = self._timetables[f"dOmega_nu_{flavor+1}"]
 
         a_arr = jnp.atleast_1d(a)
         out = jnp.interp(a_arr, a_tab, domega_tab)
-
         return out[0] if jnp.asarray(a).ndim == 0 else out
 
     @forbidden_for_derivative
@@ -401,7 +427,7 @@ class Cosmology:
     def E(self, a: float | AnyArray) -> AnyArray:
         """Dimensionless Hubble parameter as a function of scale factor."""
         # see https://arxiv.org/pdf/astro-ph/0508156 (Eqs. 3 & 5) for w(a) = w0 + wa (1-a)
-        nu_term = self.Omega_nu_exact(a) if not self._timetables else self.Omega_nu(a)
+        nu_term = self.Omega_nu_exact(a,flavor=None) if not self._timetables else self.Omega_nu(a,flavor=None)
         return jnp.sqrt((self.Omega_gamma) * a ** -4 + self.Omega_m * a ** -3 + self.Omega_k * a ** -2 + self.Omega_de_of_a(a) +nu_term)
 
     @forbidden_for_derivative
@@ -427,8 +453,8 @@ class Cosmology:
         
         # Neutrino term 
         if not self._timetables:
-            nu_term = self.Omega_nu_exact(a)
-            dnu_term = jax.grad(self.Omega_nu_exact)(a)
+            nu_term = self.Omega_nu_exact(a,flavor=None)
+            dnu_term = jax.grad(lambda a: self.Omega_nu_exact(a, flavor=None))(a)
         else:
             nu_term = self.Omega_nu(a)
             dnu_term = self.dOmega_nu(a)
@@ -655,3 +681,4 @@ class Cosmology:
         """Derivative of the momentum growth factor with respect to scale factor."""
         E_of_a = self.E(a)
         return a ** 2 * (a * E_of_a * self.Dplusdada(a) + self.Dplusda(a) * (3 * E_of_a + a * self.Eda(a)))
+    

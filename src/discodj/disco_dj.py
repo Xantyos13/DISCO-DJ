@@ -10,6 +10,7 @@ import diffrax
 from diffrax import ODETerm, diffeqsolve, SaveAt, NoProgressMeter
 # from diffrax import TqdmProgressMeter
 from .cosmology.cosmology import Cosmology
+from .cosmology.neutrinos import get_nu_correction_k
 from .cosmology.cosmo_utils import get_sigma8_squared_from_Pk
 from .cosmology.predefined_cosmologies import get_cosmology_dict_from_name
 from .cosmology.transfer_functions import transfer_dict
@@ -1042,6 +1043,12 @@ class DiscoDJ:
         # Will return all_a if requested or otherwise a_save (which is a_end if not collect_all)
         a_out = solver.all_a_and_internal[0] if (return_all_a or collect_all) else a_end
 
+
+
+        # TODO ADD THE COMPUTATION OF NEUTRINO CORRECTION FACOTR 
+
+       # deltanu_correction = self.get_nu_correction_k(k_dict_pm["k_vecs"] ,deltanu_table, a_deltanu, a )
+
         # Get the acceleration function
         if method == "exact":
             assert self.dim == 1, "Exact acceleration is only available in 1D"
@@ -1336,6 +1343,7 @@ class DiscoDJ:
                                        kernel_size_nufft=kernel_size_nufft, chunk_size=chunk_size,
                                        try_to_jit=try_to_jit)
 
+# TODO Do we have to keep this one or let the previous one ? 
     def get_phi_from_delta(self, delta: Array,a: Array | float,) -> Array:
         """Compute the potential from the density contrast using the Poisson equation in Fourier space.
 
@@ -1343,11 +1351,49 @@ class DiscoDJ:
         :return: potential
         """
         fdelta = jnp.fft.rfftn(delta)
-        if deltanu is not None:
-            omega_nu_over_omega_m = self.Omega_nu(a) / (((self.Omega_m  ) * a_loc ** -3) / E**2)
-            fdelta_nu = jnp.fft.rfftn(deltanu)
-            fdelta = fdelta + omega_nu_over_omega_m * fdelta_nu
         fphi = inv_laplace_kernel(self.k_vecs) * fdelta
+        return jnp.fft.irfftn(fphi)
+
+ #   def get_phi_from_delta(self, delta_cb: Array, a: float) -> Array:
+ #       """
+ #       Compute gravitational potential including massive neutrinos.
+ #
+ #       φ = Poisson⁻¹[ δ_cb + δ_nu contribution ]
+ #       """
+ #
+ #       fdelta_cb = jnp.fft.rfftn(delta_cb)
+ #
+ #       fdelta_eff = fdelta_cb
+ #
+ #       Omega_cb = self.Omega_m * a**(-3)
+ #       Omega_nu = jnp.array([
+ #           self.Omega_nu(a, flavor=1),
+ #           self.Omega_nu(a, flavor=2),
+ #           self.Omega_nu(a, flavor=3)
+ #       ])
+ #       R_rho = Omega_nu / Omega_cb
+ #       # k magnitude
+ #       k_mag = jnp.sqrt(
+ #           jnp.sum(
+ #               jnp.stack([k_vecs[d]**2 for d in range(self.dim)], axis=0),
+ #               axis=0
+ #           )
+ #       )
+ #       k_mag_h = k_mag / self.h
+ #       a_idx = jnp.argmin(jnp.abs(a_deltanu - a))
+ #       correction = 0.0
+ #       for i in range(3):
+ #           delta_nu_1d = deltanu_table[:, a_idx, i]
+ #           R_nu_k = jnp.interp(
+ #               k_mag_h.flatten(),
+ #               self.k_deltanu,
+ #               delta_nu_1d
+ #           ).reshape(k_mag.shape)
+ #           correction += R_rho[i] * R_nu_k
+ #       fdelta_eff = fdelta_cb * (1.0 + correction)
+ #       jax.debug.print("correction = ",correction )
+ #       fphi = inv_laplace_kernel(k_vecs) * fdelta_eff
+
         return jnp.fft.irfftn(fphi)
 
     def get_delta_from_phi(self, phi: Array) -> Array:

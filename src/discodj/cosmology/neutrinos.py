@@ -147,7 +147,7 @@ def nu_background( a : float, amnu: float, nq : int = 8 ) -> tuple[float, float,
     return rhonu, pnu, ppnu
 
 
-################## BACKGROUND ################## 
+################## PERTURBATIVE ################## 
 
 
 def nu_perturb( a : float, amnu: float, psi0: jax.Array, psi1 : jax.Array, psi2 : jax.Array, nqmax : int ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
@@ -565,8 +565,7 @@ def convert_to_output_variables(*, y, param, kmode, lmaxg, lmaxgp, lmaxr, lmaxnu
     # ... massless neutrinos
     deltar = y[ 9 + lmaxg + lmaxgp]
     thetar = y[10 + lmaxg + lmaxgp]
-
-    #... massive neutrinos
+  
     rhonu = jnp.exp(param['logrhonu_of_loga_spline'].evaluate(jnp.log(a)))
     pnu = jnp.exp(param['logpnu_of_loga_spline'].evaluate( jnp.log(a) ) )
     rho_plus_p = rhonu + pnu
@@ -652,3 +651,123 @@ def convert_to_output_variables(*, y, param, kmode, lmaxg, lmaxgp, lmaxr, lmaxnu
     ])
             
     return yout
+
+######################### WITH CLASS #########################
+
+    @forbidden_for_derivative
+    def deltanu_with_class(self):
+
+        from classy import Class
+        import numpy as np
+
+        class_params = {
+            "output": "mPk,dTk",
+            "h": self.h,
+            "omega_b": self.Omega_b * self.h**2,
+            "omega_cdm": self.Omega_c * self.h**2,
+            "A_s": 2.089e-9,
+            "n_s": self.n_s,
+            "tau_reio": 0.0952,
+            "N_ncdm": 3,
+            "m_ncdm": f"{self.mnu[0]},{self.mnu[1]},{self.mnu[2]}",
+            "N_ur": 0,
+            "P_k_max_h/Mpc": 10.,
+            "z_max_pk": 50.,
+            "T_cmb": 2.7255,
+            "YHe": 0.24,
+        }
+
+        cosmo = Class()
+        cosmo.set(class_params)
+        cosmo.compute()
+
+        a_values = np.linspace(0.02, 1.0, 50)
+
+        # on récupère la grille k interne de CLASS
+        tr0 = cosmo.get_transfer(z=0.)
+        k_h = tr0['k (h/Mpc)']
+
+        nk = len(k_h)
+        na = len(a_values)
+
+        delta_nu = np.zeros((nk, na, 3))
+
+        for ia, a in enumerate(a_values):
+
+            z = 1./a - 1.
+
+            tr = cosmo.get_transfer(z=z)
+
+            delta_nu[:, ia, 0] = tr['d_ncdm[0]']
+            delta_nu[:, ia, 1] = tr['d_ncdm[1]']
+            delta_nu[:, ia, 2] = tr['d_ncdm[2]']
+
+        cosmo.struct_cleanup()
+        cosmo.empty()
+
+        return k_h, a_values, delta_nu
+
+
+
+def get_nu_correction_k(self, k_vecs, deltanu_table, a_deltanu, a):
+    """
+    Compute
+        correction(k,a) = sum_i Omega_nu_i(a)/Omega_m(a) * delta_nu_i(k,a)
+    interpolated on the PM Fourier grid.
+
+    Parameters
+    ----------
+    k_vecs : tuple/list
+        Fourier vectors of the PM mesh.
+    deltanu_table : array
+        Shape (Nk, Na, 3)
+    a_deltanu : array
+        Scale factors corresponding to deltanu_table.
+    a : float
+        Scale factor.
+
+    Returns
+    -------
+    correction : array
+        Shape identical to the PM Fourier mesh.
+    """
+
+    # Fourier-space |k|
+    k_mag = jnp.sqrt(
+        jnp.sum(
+            jnp.stack(
+                [k_vecs[d]**2 for d in range(self.dim)],
+                axis=0
+            ),
+            axis=0
+        )
+    )
+
+    k_mag_h = k_mag / self.h
+
+    # nearest time slice
+    a_idx = jnp.argmin(jnp.abs(a_deltanu - a))
+
+    # Omega_m(a)
+    Omega_m_a = self.Omega_m * a**(-3)
+
+    correction = jnp.zeros_like(k_mag)
+
+    for i in range(3):
+
+        Omega_nu_i = self.Omega_nu(a, flavor=i+1)
+
+        weight = Omega_nu_i / Omega_m_a
+
+        delta_nu_i = deltanu_table[:, a_idx, i]
+
+        delta_nu_interp = jnp.interp(
+            k_mag_h.flatten(),
+            self.k_deltanu,
+            delta_nu_i
+        ).reshape(k_mag.shape)
+
+        correction += weight * delta_nu_interp
+
+    return correction
+
