@@ -1787,7 +1787,7 @@
 \definecolor{textcolor}{rgb}{0.150000,0.150000,0.150000}%
 \pgfsetstrokecolor{textcolor}%
 \pgfsetfillcolor{textcolor}%
-\pgftext[x=0.241670in,y=2.589883in,,bottom,rotate=90.000000]{\color{textcolor}{\rmfamily\fontsize{14.000000}{16.800000}\selectfont\catcode`\^=\active\def^{\ifmmode\sp\else\^{}\fi}\catcode`\%=\active\def%{\%}$P_{cb}(m_\nu=0.3\,{\rm eV}) / P_{cb}(m_\nu=0)$}}%
+\pgftext[x=0.241670in,y=2.589883in,,bottom,rotate=90.000000]{\color{textcolor}{\rmfamily\fontsize{14.000000}{16.800000}\selectfont\catcode`\^=\active\def^{\ifmmode\sp\else\^{}\fi}\catcode`\%=\active\def%{\%}$P_{cb}(m_\nu=0.06\,{\rm eV}) / P_{cb}(m_\nu=0)$}}%
 \end{pgfscope}%
 \begin{pgfscope}%
 \pgfpathrectangle{\pgfqpoint{0.938422in}{0.594772in}}{\pgfqpoint{6.019908in}{3.990222in}}%
