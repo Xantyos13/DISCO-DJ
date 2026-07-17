@@ -345,20 +345,20 @@ class Cosmology:
                 omega_nu_list.append(omega_nu)
             omega_sum = jnp.sum(jnp.array(omega_nu_list))
             if flavor is None:
-                return omega_sum  # Omega_nu_tot
+                return omega_sum 
             else:
-                return omega_nu_list[flavor]  # Omega_nu_1, Omega_nu_2 ou Omega_nu_3
+                return omega_nu_list[flavor]  
 
         out = jax.vmap(one_a)(a_arr)
         return out[0] if jnp.asarray(a).ndim == 0 else out
 
     @forbidden_for_derivative
     def compute_nu_table(self, a: AnyArray) -> dict:
-        # Calculer Omega_nu_tot et ses dérivées
+        
         Omega_nu_tot = jax.vmap(lambda a: self.Omega_nu_exact(a, flavor=None))(a)
         dOmega_nu_tot = jax.vmap(jax.grad(lambda a: self.Omega_nu_exact(a, flavor=None)))(a)
 
-        # Calculer Omega_nu_1, Omega_nu_2, Omega_nu_3 et leurs dérivées
+        
         Omega_nu_1 = jax.vmap(lambda a: self.Omega_nu_exact(a, flavor=0))(a)
         Omega_nu_2 = jax.vmap(lambda a: self.Omega_nu_exact(a, flavor=1))(a)
         Omega_nu_3 = jax.vmap(lambda a: self.Omega_nu_exact(a, flavor=2))(a)
@@ -574,6 +574,7 @@ class Cosmology:
         names = ("Dplus", "Dplusda", "D2plus", "D2plusda", "D3plusa", "D3plusada", "D3plusb", "D3plusbda", "D3plusc")
         norm_exponent = (1, 1, 2, 2, 3, 3, 3, 3, 3)
         growth_dict = {name: ys[:, i] / Dplus_unnormed_at_1 ** norm_exponent[i] for i, name in enumerate(names)}
+        print(growth_dict)
         growth_dict["Dplus_unnormed_at_1"] = Dplus_unnormed_at_1
 
         # Append the second derivative of Dplus
